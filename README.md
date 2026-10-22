@@ -47,7 +47,7 @@ The demo data is embedded in `index.html`. To update it:
 1. Open the dashboard and drop in the new CSV. It should contain **all months** (old and new), so the trend and the month-over-month comparison work.
 2. Check the line under the title ("Data through …") shows the new month, and the grey line under the filters shows how many rows were counted.
 3. Press **บันทึก dashboard พร้อมข้อมูลนี้** ("Save dashboard with this data"). The browser downloads a new HTML file with the data embedded.
-4. Rename it to `index.html`, replace the one in this repository, commit and push. If the repository is connected to Vercel, pushing triggers a new deployment.
+4. Rename it to `index.html`, replace the one in this repository, commit and push. This repository is connected to Vercel, so pushing to `main` triggers a new deployment automatically.
 
 **Careful:** the saved file contains the whole CSV. Whatever you save and publish becomes public. Only publish data that is meant to be public. Dropping a CSV onto the page without saving changes nothing for other visitors.
 
