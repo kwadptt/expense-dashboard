@@ -4,7 +4,7 @@ A one-page dashboard that answers a single question: **where is our money going,
 
 > แดชบอร์ดค่าใช้จ่ายหน้าเดียว ตอบคำถามว่า "เงินไปไหน และมีอะไรไปในทิศทางที่แย่หรือไม่" (หน้าเว็บเป็นภาษาไทยผสมอังกฤษ)
 
-<!-- Live demo: add the Vercel URL here after the first deploy -->
+**Live demo: https://expense-dashboard-amber-five.vercel.app/**
 
 **All figures in this repository are fictional demo data.** The vendors and amounts were invented for this demo. They are not real company figures.
 
