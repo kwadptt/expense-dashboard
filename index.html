@@ -1,0 +1,817 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="An expense dashboard that shows where the money is going and whether anything is moving in the wrong direction. Demo data only.">
+<title>Expense Dashboard</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface: #fcfcfb; --ink: #1a1d21; --ink-2: #52514e; --ink-3: #6b6a65;
+    --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11, 11, 11, 0.10); --band: #f1f0ea;
+    --series: #3a6fb5;        /* normal spending */
+    --series-soft: #9db6d6;   /* secondary line / track */
+    --bad: #d9531e;           /* the one accent: wrong direction */
+    --bad-text: #b8420f;
+    --bad-wash: #fdf1ea;
+    --total: #4b5563;          /* total spend line: calm neutral */
+    --good-wash: #eef3fa;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", "Leelawadee UI", sans-serif; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 40px 20px 96px; }
+  header h1 { font-size: 22px; font-weight: 650; margin: 0; letter-spacing: -0.01em; }
+  header .q { color: var(--ink-2); margin: 4px 0 0; }
+  section { margin-top: 40px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 24px; }
+  .card h2 { font-size: 15px; font-weight: 650; margin: 0; }
+  .card .sub { color: var(--ink-3); font-size: 13px; margin: 2px 0 0; }
+  .head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+  button, select { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--axis); border-radius: 8px; padding: 7px 12px; cursor: pointer; }
+  button:hover, select:hover { border-color: var(--ink-3); }
+  button.link { border: 0; background: none; color: var(--ink-2); padding: 4px 8px; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
+  :focus-visible { outline: 2px solid var(--series); outline-offset: 2px; }
+
+  .filters { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-top: 24px; }
+  .filters label { color: var(--ink-3); font-size: 13px; margin-right: 6px; }
+  .filters .grow { flex: 1; }
+  .fresh { color: var(--ink-2); font-size: 14px; margin: 8px 0 0; }
+  .fresh strong { font-weight: 650; color: var(--ink); }
+  .caveat { margin-top: 14px; background: #f3f2ee; border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; font-size: 14px; color: var(--ink-2); }
+  .caveat .ct { font-weight: 650; color: var(--ink); margin-bottom: 4px; }
+  .caveat .ci { color: var(--ink-3); margin-right: 6px; }
+  .caveat .cg { margin-top: 10px; }
+  .caveat .cm { font-size: 12px; font-weight: 600; color: var(--ink-3); }
+  .caveat ul { margin: 4px 0 0; padding-left: 18px; }
+  .caveat li { margin: 3px 0; }
+  .caveat.clear { background: none; border: 0; padding: 0 4px; color: var(--ink-3); font-size: 13px; }
+  .demo { margin: 10px 0 0; padding: 8px 12px; background: #f3f2ee; border: 1px solid var(--border); border-radius: 8px; color: var(--ink-2); font-size: 13px; }
+  .datanote { color: var(--ink-3); font-size: 13px; margin-top: 10px; }
+  .datanote strong { color: var(--ink-2); font-weight: 600; }
+
+  /* verdict */
+  .verdict { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 0; padding: 0; overflow: hidden; }
+  .verdict > div { padding: 28px; }
+  .verdict > div + div { border-left: 1px solid var(--border); }
+  .label { color: var(--ink-3); font-size: 13px; }
+  .hero { font-size: 56px; line-height: 1.05; font-weight: 650; letter-spacing: -0.02em; margin: 10px 0 6px; }
+  .big { font-size: 30px; line-height: 1.15; font-weight: 650; letter-spacing: -0.01em; margin: 12px 0 6px; }
+  .detail { color: var(--ink-2); font-size: 14px; }
+  .t-bad { color: var(--bad-text); }
+  .verdict .flagged { background: var(--bad-wash); }
+  .verdict .goodwash { background: var(--good-wash); }
+  .vword { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 20px; font-weight: 700; line-height: 1.2; }
+  .vicon { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 30px; height: 30px; border-radius: 50%; font-size: 14px; color: #fff; background: var(--ink-3); }
+  .vword.bad { color: var(--bad-text); } .vword.bad .vicon { background: var(--bad); }
+  .vword.good { color: var(--series); } .vword.good .vicon { background: var(--series); }
+  .vword + .big { margin-top: 8px; }
+  .tagbad { display: inline-block; font-size: 12px; font-weight: 600; color: var(--bad-text); margin-left: 8px; vertical-align: middle; }
+
+  /* charts */
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 22px; font-size: 13px; color: var(--ink-2); margin: 0 0 8px; }
+  .legend i { display: inline-block; width: 18px; height: 0; border-top: 2px solid; vertical-align: middle; margin-right: 8px; }
+  .chartbox { position: relative; }
+  .tip { position: absolute; pointer-events: none; z-index: 5; background: var(--surface); border: 1px solid var(--axis); border-radius: 10px; padding: 10px 12px; font-size: 13px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08); min-width: 150px; }
+  .tip .t { color: var(--ink-3); margin-bottom: 4px; }
+  .tip .r { display: flex; align-items: baseline; gap: 8px; white-space: nowrap; }
+  .tip .r b { font-size: 15px; font-weight: 650; color: var(--ink); }
+  .tip .r span { color: var(--ink-2); }
+  .tip .k { display: inline-block; width: 12px; border-top: 2px solid; margin-right: 2px; align-self: center; }
+  svg text { font-family: inherit; }
+  .viewtable { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .viewtable th, .viewtable td { padding: 8px 10px; border-bottom: 1px solid var(--grid); text-align: left; }
+  .viewtable th { color: var(--ink-3); font-weight: 600; font-size: 12px; }
+  .num { text-align: right !important; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  /* category bars */
+  .keyrow { display: flex; flex-wrap: wrap; gap: 6px 20px; color: var(--ink-3); font-size: 13px; margin-bottom: 14px; }
+  .keyrow i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  .bars { display: flex; flex-direction: column; }
+  .brow { display: grid; grid-template-columns: minmax(96px, 190px) 1fr; align-items: center; min-height: 40px; cursor: pointer; border-radius: 8px; }
+  .brow:hover { background: var(--band); }
+  .brow .name { padding-right: 14px; font-size: 14px; text-align: right; color: var(--ink); overflow-wrap: anywhere; }
+  .brow .track { display: flex; align-items: center; border-left: 1px solid var(--axis); min-height: 40px; }
+  .brow .bar { flex: none; height: 20px; width: calc((100% - 190px) * var(--p)); min-width: 2px; background: var(--series); border-radius: 0 4px 4px 0; }
+  .brow.bad .bar { background: var(--bad); }
+  .brow .val { margin-left: 10px; font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .brow .val em { font-style: normal; font-size: 12px; font-weight: 600; margin-left: 8px; color: var(--ink-3); }
+  .brow.bad .val em { color: var(--bad-text); }
+  .bars.has-sel .brow:not(.sel) { opacity: 0.4; }
+  .brow.sel { background: var(--band); }
+
+  /* table */
+  .tablewrap { overflow-x: auto; }
+  table.exp { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .exp th { text-align: left; font-size: 12px; font-weight: 600; color: var(--ink-3); padding: 10px 12px; border-bottom: 1px solid var(--axis); white-space: nowrap; }
+  .exp th button { all: unset; cursor: pointer; font: inherit; color: inherit; font-weight: 600; }
+  .exp th button:hover { color: var(--ink); }
+  .exp th button:focus-visible { outline: 2px solid var(--series); outline-offset: 2px; }
+  .exp td { padding: 11px 12px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+  .exp td.notes { color: var(--ink-3); }
+  .exp tr.bad td:first-child { box-shadow: inset 3px 0 0 var(--bad); }
+  .exp tr.off td { color: var(--ink-3); }
+  .exp tr.off td.amt { text-decoration: line-through; }
+  .chip { display: inline-block; font-size: 11px; color: var(--ink-2); border: 1px solid var(--axis); border-radius: 999px; padding: 0 8px; margin-left: 8px; white-space: nowrap; }
+  .exp tfoot td { font-weight: 600; border-bottom: 0; padding-top: 14px; }
+  .empty { color: var(--ink-3); padding: 28px 0; text-align: center; }
+
+  .drop-over { outline: 3px dashed var(--series); outline-offset: -12px; }
+  .error { background: #fdeceb; border: 1px solid #f1b8b4; color: #9a1f17; padding: 12px 14px; border-radius: 10px; margin-top: 24px; }
+  .hidden { display: none !important; }
+  @media (max-width: 820px) {
+    .verdict { grid-template-columns: 1fr; }
+    .verdict > div + div { border-left: 0; border-top: 1px solid var(--border); }
+    .hero { font-size: 44px; }
+    .brow { grid-template-columns: 1fr; padding: 6px 0; }
+    .brow .name { text-align: left; padding: 0 0 4px 2px; font-size: 13px; }
+    .brow .track { min-height: 24px; }
+    .brow .bar { width: calc((100% - 150px) * var(--p)); }
+    .card { padding: 18px; }
+    .card.verdict { padding: 0; }
+    .verdict > div { padding: 22px 20px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Expense Dashboard · แดชบอร์ดค่าใช้จ่าย</h1>
+    <p class="q">เงินของเราไปไหน และมีอะไรที่กำลังไปในทิศทางที่แย่หรือไม่</p>
+    <p class="fresh" id="fresh"></p>
+    <p class="demo" id="demo">ข้อมูลตัวอย่างที่สมมุติขึ้น ไม่ใช่ตัวเลขจริงของบริษัทใด · Fictional demo data, not real company figures. ลากไฟล์ CSV ของคุณมาวางเพื่อลองใช้ — ไฟล์ไม่ถูกอัปโหลดไปไหน / Drop your own CSV to try it: it never leaves your browser.</p>
+  </header>
+
+  <div class="filters" id="filters">
+    <span><label for="fMonth">เดือน</label><select id="fMonth"></select></span>
+    <span><label for="fCat">หมวดหมู่</label><select id="fCat"></select></span>
+    <span class="grow"></span>
+    <button id="pick" type="button">เปลี่ยนไฟล์ CSV…</button>
+    <button id="save" type="button" title="ดาวน์โหลดไฟล์ dashboard ใหม่ที่ฝังข้อมูลนี้ไว้ เปิดแล้วเห็นข้อมูลนี้ทันที">บันทึก dashboard พร้อมข้อมูลนี้</button>
+    <input type="file" id="file" accept=".csv,text/csv" class="hidden">
+  </div>
+  <div class="datanote" id="datanote"></div>
+  <div class="datanote hidden" id="savedmsg" role="status"></div>
+  <div id="message"></div>
+
+  <main id="main">
+    <section>
+      <div class="card verdict" id="verdict"></div>
+      <div class="caveat" id="caveats" role="note"></div>
+    </section>
+
+    <section>
+      <div class="card">
+        <div class="head">
+          <div><h2>แนวโน้มยอดใช้จ่ายรายเดือน · Monthly spend</h2><p class="sub" id="trendSub"></p></div>
+          <button class="link" id="trendToggle" type="button">ดูเป็นตาราง</button>
+        </div>
+        <div class="legend" id="trendLegend"></div>
+        <div class="chartbox" id="trendBox"><div id="trend"></div><div class="tip hidden" id="trendTip" role="status"></div></div>
+        <div id="trendTable" class="hidden"></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="card">
+        <div class="head">
+          <div><h2>ยอดตามหมวดหมู่ · Spend by category</h2><p class="sub" id="catSub"></p></div>
+          <button class="link" id="catToggle" type="button">ดูเป็นตาราง</button>
+        </div>
+        <div class="keyrow" id="catKey"></div>
+        <div class="chartbox" id="catBox"><div class="bars" id="bars"></div><div class="tip hidden" id="catTip" role="status"></div></div>
+        <div id="catTable" class="hidden"></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="card">
+        <div class="head">
+          <div><h2>รายการทั้งหมด · All expenses</h2><p class="sub" id="tableSub"></p></div>
+        </div>
+        <div class="tablewrap"><table class="exp" id="exp"></table></div>
+        <div id="more" style="margin-top:12px"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+const DEFAULT_CSV = "Date,Vendor,Category,Amount,Notes\n2026-01-03,Brightline Cloud,Software,149.90,\n2026-01-05,Cobalt Co-working,Office Rent,2150.00,\n2026-01-08,Harbor Hotels,Travel,420.50,client visit\n2026-01-10,Quill Office Supply,Office Supplies,72.40,\n2026-01-12,Notely,Software,96.00,annual plan billed monthly\n2026-01-15,Skyway Air,Travel,310.00,\n2026-01-16,PixelPress Design,Software,54.99,\n2026-01-18,Corner Table Cafe,Meals & Entertainment,88.30,team lunch\n2026-01-20,MailLoop,Software,60.00,\n2026-01-22,RideNow,Travel,48.20,\n2026-01-24,Northwind Ads,Marketing,500.00,launch campaign\n2026-01-27,RideNow,Travel,36.75,\n2026-02-03,Brightline Cloud,Software,149.90,\n2026-02-05,Cobalt Co-working,Office Rent,2150.00,\n2026-02-09,Harbor Hotels,Travel,180.00,\n2026-02-11,Quill Office Supply,Office Supplies,38.15,\n2026-02-12,Notely,Software,96.00,annual plan billed monthly\n2026-02-14,RideNow,Travel,42.10,\n2026-02-16,PixelPress Design,Software,54.99,\n2026-02-19,RideNow,Travel,55.60,\n2026-02-20,MailLoop,Software,60.00,\n2026-02-21,Northwind Ads,Marketing,640.00,launch campaign\n2026-02-25,Corner Table Cafe,Meals & Entertainment,61.40,\n2026-03-03,Brightline Cloud,Software,149.90,\n2026-03-05,Cobalt Co-working,Office Rent,2150.00,\n2026-03-06,Harbor Hotels,Travel,515.00,conference\n2026-03-10,Quill Office Supply,Office Supplies,120.00,\n2026-03-12,Notely,Software,96.00,annual plan billed monthly\n2026-03-12,Skyway Air,Travel,,receipt pending\n2026-03-14,RideNow,Travel,64.20,\n2026-03-16,PixelPress Design,Software,54.99,\n2026-03-19,Northwind Ads,Marketing,880.00,launch campaign\n2026-03-20,MailLoop,Software,60.00,\n2026-03-21,Corner Table Cafe,Meals & Entertainment,95.75,\n2026-04-03,Brightline Cloud,Software,149.90,\n2026-04-04,Brightline Cloud,Software,149.90,possible double charge?\n2026-04-05,Cobalt Co-working,Office Rent,2150.00,\n2026-04-08,RideNow,Travel,70.50,\n2026-04-12,Notely,Software,96.00,annual plan billed monthly\n2026-04-14,Quill Office Supply,Office Supplies,66.00,\n2026-04-15,Skyway Air,Travel,640.00,\n2026-04-16,PixelPress Design,Software,54.99,\n2026-04-20,MailLoop,Software,60.00,\n2026-04-22,Harbor Hotels,Travel,355.00,\n2026-04-27,Corner Table Cafe,Meals & Entertainment,52.20,\n2026-05-03,Brightline Cloud,Software,149.90,\n2026-05-05,Cobalt Co-working,Office Rent,2150.00,\n2026-05-07,RideNow,Travel,58.00,\n2026-05-09,Northwind Ads,Marketing,450.00,\n2026-05-12,Notely,Software,96.00,annual plan billed monthly\n2026-05-13,Quill Office Supply,Office Supplies,41.80,\n2026-05-16,PixelPress Design,Software,54.99,\n2026-05-20,Harbor Hotels,Travel,190.00,\n2026-05-20,MailLoop,Software,60.00,\n2026-05-28,Corner Table Cafe,Meals & Entertainment,70.10,\n2026-06-03,Brightline Cloud,Software,149.90,\n2026-06-05,Cobalt Co-working,Office Rent,2150.00,\n2026-06-08,Skyway Air,Travel,890.00,offsite\n2026-06-10,Harbor Hotels,Travel,740.00,offsite\n2026-06-12,Notely,Software,96.00,annual plan billed monthly\n2026-06-12,Quill Office Supply,Office Supplies,55.00,\n2026-06-15,RideNow,Travel,96.40,\n2026-06-16,PixelPress Design,Software,54.99,\n2026-06-19,Corner Table Cafe,Meals & Entertainment,64.00,\n2026-06-20,MailLoop,Software,60.00,\n2026-06-24,Skyway Air,Travel,520.00,\n2026-06-25,RideNow,Travel,72.30,\n";
+const DEFAULT_NAME = "demo_expenses.csv";
+
+// ---- Settings you can change ------------------------------------------------
+const KNOWN_CATEGORIES = ["Software", "Travel", "Office Rent", "Office Supplies", "Marketing", "Meals & Entertainment"];
+const CATEGORY_ALIASES = {
+  "subscriptions": "Software", "subscription": "Software", "saas": "Software",
+  "rent": "Office Rent", "ads": "Marketing", "advertising": "Marketing",
+  "meals": "Meals & Entertainment", "supplies": "Office Supplies"
+};
+const VENDOR_NOISE_WORDS = ["the", "inc", "llc", "ltd", "co", "corp", "company", "hotels", "hotel", "premium", "pro", "airlines", "airline"];
+const FAST_MIN_PRIOR = 100;     // a category needs at least this much spend last month to count as "fastest growing"
+const BAD_PCT = 0.5;            // "growing unusually fast": up more than 50% ...
+const BAD_MIN_ABS = 100;        // ... and by at least this amount versus last month
+const TOTAL_BAD_PCT = 0.10;     // total spend up more than 10% gets the accent
+const DUP_WINDOW_DAYS = 7;      // same vendor + near-same amount within this many days = possible duplicate
+const DUP_TOLERANCE = 0.01;     // 1% (or 1.00, whichever is larger)
+const PARTIAL_GAP_DAYS = 3;     // a month whose data stops/starts more than this many days from the month edge is "maybe incomplete"
+const THIN_RATIO = 0.5;         // a month with fewer than this share of the typical number of rows is "unusually thin"
+const ROWS_FIRST = 100;         // table rows shown before "show all"
+// -----------------------------------------------------------------------------
+
+const MONTHS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+const MONTH_LOOKUP = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9, oct: 10, nov: 11, dec: 12 };
+const FULL_MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+FULL_MONTHS.forEach((n, i) => { MONTH_LOOKUP[n] = i + 1; });
+const CURRENCY_SYMBOLS = { "$": "USD", "€": "EUR", "£": "GBP", "฿": "THB", "¥": "JPY" };
+const CURRENCY_CODES = ["USD", "EUR", "GBP", "THB", "JPY", "CNY", "SGD", "AUD", "CAD", "CHF", "HKD", "INR", "KRW", "MYR", "IDR", "VND", "NZD", "PHP"];
+const EXCLUDE_LABEL = {
+  bad_columns: "แถวผิดรูปแบบ", total_row: "แถวสรุปยอดรวม", bad_date: "วันที่อ่านไม่ได้", missing_amount: "ไม่มียอดเงิน",
+  bad_amount: "อ่านยอดไม่ได้", other_currency: "สกุลเงินอื่น", dup_exact: "แถวซ้ำ"
+};
+
+const $ = id => document.getElementById(id);
+const PRISTINE = "<!doctype html>\n" + document.documentElement.outerHTML; // untouched copy of this page, used by "save with this data"
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const money = n => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const monthName = k => { const [y, m] = k.split("-").map(Number); return `${MONTHS[m - 1]} ${y}`; };
+const prevKey = k => { let [y, m] = k.split("-").map(Number); m -= 1; if (m === 0) { m = 12; y -= 1; } return `${y}-${String(m).padStart(2, "0")}`; };
+const pctText = p => `${p >= 0 ? "+" : "−"}${Math.abs(p * 100).toFixed(1)}%`;
+function fmtK(v) { return v >= 1000 ? `${+(v / 1000).toFixed(1)}K` : String(+v.toFixed(0)); }
+
+const S = { records: [], agg: {}, months: [], fileName: "", currency: "", notes: [], fMonth: "", fCat: "all", sort: { key: "date", dir: -1 }, showAll: false, sig: null, anchor: "", dupPairs: [], counts: {}, cav: {} };
+
+// ---- Reading and cleaning (same rules as the Monthly Spend Reporter) ---------
+function parseCsv(text) {
+  text = text.replace(/^﻿/, "");
+  const firstLine = text.split(/\r?\n/, 1)[0];
+  const delim = [",", ";", "\t"].map(d => [d, firstLine.split(d).length]).sort((a, b) => b[1] - a[1])[0][0];
+  const rows = [];
+  let row = [], field = "", quoted = false, lineNo = 1, startLine = 1;
+  const endRow = () => { row.push(field); field = ""; if (row.some(f => f.trim() !== "")) rows.push({ n: startLine, cells: row }); row = []; };
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quoted) {
+      if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else quoted = false; }
+      else { if (c === "\n") lineNo++; field += c; }
+    } else if (c === '"') quoted = true;
+    else if (c === delim) { row.push(field); field = ""; }
+    else if (c === "\n" || c === "\r") { if (c === "\r" && text[i + 1] === "\n") i++; endRow(); lineNo++; startLine = lineNo; }
+    else field += c;
+  }
+  if (quoted) { row.push(field); rows.push({ n: startLine, cells: row, unterminated: true }); }
+  else if (field !== "" || row.length) endRow();
+  return rows;
+}
+function makeDate(y, m, d) {
+  if (y < 2000 || y > 2100) return null;
+  const t = Date.UTC(y, m - 1, d), c = new Date(t);
+  if (c.getUTCFullYear() !== y || c.getUTCMonth() !== m - 1 || c.getUTCDate() !== d) return null;
+  return { t, iso: `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`, month: `${y}-${String(m).padStart(2, "0")}`, ambiguous: false };
+}
+function parseDate(raw) {
+  const s = (raw || "").trim().replace(/[T\s]\d{1,2}:\d{2}(:\d{2})?.*$/, "");
+  if (!s) return null;
+  let m, dt = null;
+  if ((m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/))) {
+    dt = makeDate(+m[1], +m[2], +m[3]);
+    if (!dt && +m[1] >= 2500) dt = makeDate(+m[1] - 543, +m[2], +m[3]);
+    return dt;
+  }
+  if ((m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2}|\d{4})$/))) {
+    const a = +m[1], b = +m[2], short = m[3].length === 2, y = short ? 2000 + +m[3] : +m[3];
+    let day, mon, amb = false;
+    if (a > 12) { day = a; mon = b; } else if (b > 12) { mon = a; day = b; }
+    else if (short) { mon = a; day = b; amb = a !== b; } else { day = a; mon = b; amb = a !== b; }
+    dt = makeDate(y, mon, day);
+    if (dt && amb) dt.ambiguous = true;
+    return dt;
+  }
+  if ((m = s.match(/^([A-Za-z]{3,9})\.?\s+(\d{1,2}),?\s+(\d{4})$/)) && MONTH_LOOKUP[m[1].toLowerCase()]) return makeDate(+m[3], MONTH_LOOKUP[m[1].toLowerCase()], +m[2]);
+  if ((m = s.match(/^(\d{1,2})\s+([A-Za-z]{3,9})\.?,?\s+(\d{4})$/)) && MONTH_LOOKUP[m[2].toLowerCase()]) return makeDate(+m[3], MONTH_LOOKUP[m[2].toLowerCase()], +m[1]);
+  return null;
+}
+function parseAmount(raw) {
+  let s = (raw || "").trim();
+  if (s === "") return { status: "missing" };
+  let neg = false;
+  if (/^\(.*\)$/.test(s)) { neg = true; s = s.slice(1, -1).trim(); }
+  const m = s.match(/^(-)?\s*([$€£฿¥]|[A-Za-z]{3})?\s*(-)?\s*(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?\s*([$€£฿¥]|[A-Za-z]{3})?$/);
+  if (!m || (m[2] && m[6])) return { status: "invalid" };
+  const cur = m[2] || m[6];
+  if (cur && !CURRENCY_SYMBOLS[cur] && !CURRENCY_CODES.includes(cur.toUpperCase())) return { status: "invalid" };
+  const value = Number(m[4].replace(/,/g, "") + (m[5] || ""));
+  return { status: "ok", value: neg || m[1] || m[3] ? -value : value, currency: cur ? (CURRENCY_SYMBOLS[cur] || cur.toUpperCase()) : "" };
+}
+function vendorKey(v) {
+  const words = v.toLowerCase().replace(/[^a-z0-9฀-๿ ]+/g, " ").split(/\s+/).filter(Boolean);
+  const kept = words.filter(w => !VENDOR_NOISE_WORDS.includes(w));
+  return (kept.length ? kept : words).join(" ");
+}
+const catNorm = s => s.trim().toLowerCase().replace(/\s+/g, " ").replace(/\band\b/g, "&");
+const KNOWN_BY_NORM = new Map(KNOWN_CATEGORIES.map(c => [catNorm(c), c]));
+const ALIAS_BY_NORM = new Map(Object.entries(CATEGORY_ALIASES).map(([k, v]) => [catNorm(k), v]));
+
+function prepare(text) {
+  const rows = parseCsv(text);
+  if (!rows.length) throw new Error("ไฟล์ว่างเปล่า");
+  const header = rows[0].cells.map(h => h.trim().toLowerCase());
+  const idx = n => header.indexOf(n);
+  const missing = ["date", "vendor", "category", "amount"].filter(n => idx(n) < 0);
+  if (missing.length) throw new Error(`ไม่พบคอลัมน์: ${missing.join(", ")} — ไฟล์ต้องมีหัวคอลัมน์ Date, Vendor, Category, Amount (และ Notes ถ้ามี)`);
+  if (rows.length < 2) throw new Error("ไฟล์มีแต่หัวคอลัมน์ ไม่มีรายการ");
+  const get = (cells, n) => (idx(n) >= 0 ? (cells[idx(n)] || "").trim() : "");
+
+  const records = rows.slice(1).map(r => {
+    const rec = { line: r.n, dateRaw: get(r.cells, "date"), vendor: get(r.cells, "vendor"), catRaw: get(r.cells, "category"), amountRaw: get(r.cells, "amount"), notes: get(r.cells, "notes"), excluded: null };
+    rec.vendorKey = vendorKey(rec.vendor);
+    rec.date = parseDate(rec.dateRaw);
+    const a = parseAmount(rec.amountRaw);
+    rec.amountStatus = a.status; rec.amount = a.value; rec.currency = a.currency || "";
+    const extra = r.cells.slice(header.length).some(c => c.trim() !== "");
+    if (r.unterminated || extra) rec.excluded = "bad_columns";
+    else if (/^\W*(grand\s+|sub\s*)?totals?\b/i.test(rec.vendor)) rec.excluded = "total_row";
+    else if (!rec.date) rec.excluded = "bad_date";
+    else if (a.status === "missing") rec.excluded = "missing_amount";
+    else if (a.status === "invalid") rec.excluded = "bad_amount";
+    return rec;
+  });
+  const curCount = {};
+  records.forEach(r => { if (r.currency && !["total_row", "bad_columns"].includes(r.excluded)) curCount[r.currency] = (curCount[r.currency] || 0) + 1; });
+  const currency = Object.keys(curCount).sort((a, b) => curCount[b] - curCount[a])[0] || "";
+  records.forEach(r => { if (!r.excluded && r.currency && currency && r.currency !== currency) r.excluded = "other_currency"; });
+
+  records.forEach(r => {
+    if (!r.catRaw) { r.category = ""; r.catHow = "blank"; return; }
+    const n = catNorm(r.catRaw);
+    if (KNOWN_BY_NORM.has(n)) { r.category = KNOWN_BY_NORM.get(n); r.catHow = "exact"; }
+    else if (ALIAS_BY_NORM.has(n)) { r.category = ALIAS_BY_NORM.get(n); r.catHow = "alias"; }
+    else { r.category = r.catRaw; r.catHow = "unknown"; }
+  });
+  const vendorCats = new Map();
+  records.forEach(r => {
+    if (r.excluded === "total_row" || !r.vendorKey || !["exact", "alias"].includes(r.catHow)) return;
+    if (!vendorCats.has(r.vendorKey)) vendorCats.set(r.vendorKey, new Set());
+    vendorCats.get(r.vendorKey).add(r.category);
+  });
+  records.forEach(r => {
+    if (r.catHow !== "blank") return;
+    const set = vendorCats.get(r.vendorKey);
+    if (set && set.size === 1) { r.category = [...set][0]; r.catHow = "inferred"; }
+  });
+  records.forEach(r => { r.catKey = (r.category || "").toLowerCase(); r.catName = r.category || "(ไม่มีหมวด)"; });
+
+  const seen = new Map();
+  records.forEach(r => {
+    if (r.excluded) return;
+    const key = [r.date.iso, r.vendorKey, r.catKey, r.amount.toFixed(2), r.notes.toLowerCase()].join("|");
+    if (seen.has(key)) r.excluded = "dup_exact"; else seen.set(key, r);
+  });
+  return { records, currency, curCount };
+}
+
+// ---- Numbers ----------------------------------------------------------------
+function load(text, name) {
+  const { records, currency, curCount } = prepare(text);
+  S.records = records; S.fileName = name; S.currency = currency; S.csvText = text;
+  S.notes = [];
+  if (Object.keys(curCount).length > 1) S.notes.push(`พบหลายสกุลเงิน นับเฉพาะ ${currency}`);
+  const amb = records.filter(r => r.date && r.date.ambiguous).length;
+  if (amb) S.notes.push(`${amb} แถวมีวันที่ที่อ่านได้สองแบบ (อ่านตามรูปแบบของแถว)`);
+  const inferred = records.filter(r => r.catHow === "inferred").length;
+  if (inferred) S.notes.push(`${inferred} แถวไม่มีหมวด เดาจากชื่อร้าน`);
+
+  S.agg = {};
+  records.filter(r => !r.excluded).forEach(r => {
+    const a = S.agg[r.date.month] || (S.agg[r.date.month] = { total: 0, cats: new Map() });
+    a.total += r.amount;
+    const c = a.cats.get(r.catKey) || { name: r.catName, key: r.catKey, sum: 0 };
+    c.sum += r.amount; a.cats.set(r.catKey, c);
+  });
+  S.months = Object.keys(S.agg).sort();
+  S.counts = {};
+  records.filter(r => !r.excluded).forEach(r => { S.counts[r.date.month] = (S.counts[r.date.month] || 0) + 1; });
+  if (!S.months.length) throw new Error("ไม่มีรายการที่อ่านวันที่และยอดเงินได้เลย จึงสร้าง dashboard ไม่ได้");
+  markPossibleDuplicates();
+  S.fMonth = S.months[S.months.length - 1]; S.fCat = "all"; S.sort = { key: "date", dir: -1 }; S.showAll = false;
+}
+
+// ---- Honesty layer: what a viewer should know before trusting the numbers ---
+const shortDate = iso => { const parts = iso.split("-").map(Number); return `${parts[2]} ${MONTHS[parts[1] - 1]}`; };
+const listText = (rows, fmt, max) => rows.slice(0, max).map(fmt).join(", ") + (rows.length > max ? ` และอีก ${rows.length - max}` : "");
+function median(arr) { const a = arr.slice().sort((x, y) => x - y), h = a.length >> 1; return a.length % 2 ? a[h] : (a[h - 1] + a[h]) / 2; }
+
+function markPossibleDuplicates() {
+  S.dupPairs = [];
+  S.records.forEach(r => { r.maybeDup = false; });
+  const byVendor = new Map();
+  S.records.filter(r => !r.excluded && r.vendorKey).forEach(r => {
+    if (!byVendor.has(r.vendorKey)) byVendor.set(r.vendorKey, []);
+    byVendor.get(r.vendorKey).push(r);
+  });
+  byVendor.forEach(list => {
+    list.sort((a, b) => a.date.t - b.date.t || a.line - b.line);
+    for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+      const a = list[i], b = list[j], days = (b.date.t - a.date.t) / 86400000;
+      if (days > DUP_WINDOW_DAYS) break;
+      const tol = Math.max(1, DUP_TOLERANCE * Math.max(Math.abs(a.amount), Math.abs(b.amount)));
+      if (Math.abs(a.amount - b.amount) > tol) continue;
+      a.maybeDup = true; b.maybeDup = true; S.dupPairs.push({ a, b });
+    }
+  });
+}
+
+function monthCaveats(k) {
+  const recs = S.records.filter(r => r.date && r.date.month === k), items = [], cats = new Set();
+  const add = (material, text) => items.push({ material, text });
+
+  const off = recs.filter(r => ["missing_amount", "bad_amount", "other_currency"].includes(r.excluded));
+  if (off.length) {
+    off.forEach(r => cats.add(r.catKey));
+    add(true, `${off.length} แถวไม่ถูกนับในยอด: ${listText(off, r => `${r.vendor} ${shortDate(r.date.iso)} (${EXCLUDE_LABEL[r.excluded]})`, 3)} — ยอดเดือนนี้อาจต่ำกว่าจริง`);
+  }
+  const pairs = S.dupPairs.filter(p => p.a.date.month === k || p.b.date.month === k);
+  if (pairs.length) {
+    pairs.forEach(p => { cats.add(p.a.catKey); cats.add(p.b.catKey); });
+    add(true, `อาจมีรายการซ้ำ ${pairs.length} คู่ (ยังนับทั้งสองรายการ): ${listText(pairs, p => `${p.a.vendor} ${money(p.a.amount)} (${shortDate(p.a.date.iso)}${p.a.date.iso === p.b.date.iso ? "" : " กับ " + shortDate(p.b.date.iso)})`, 2)} — ถ้าซ้ำจริง ยอดที่เกี่ยวข้องจะสูงเกินจริง`);
+  }
+  const amb = recs.filter(r => r.date.ambiguous);
+  if (amb.length) add(true, `${amb.length} แถวมีวันที่ที่อ่านได้สองแบบ (วัน/เดือนสลับกันได้) จึงอาจอยู่คนละเดือน`);
+
+  const dates = recs.map(r => r.date.iso).sort();
+  if (dates.length) {
+    const parts = k.split("-").map(Number), monthEnd = new Date(Date.UTC(parts[0], parts[1], 0)).getUTCDate();
+    const lastDay = Number(dates[dates.length - 1].slice(8)), firstDay = Number(dates[0].slice(8));
+    if (k === S.months[S.months.length - 1] && monthEnd - lastDay > PARTIAL_GAP_DAYS) add(true, `เดือนนี้อาจยังไม่ครบ: ข้อมูลถึงวันที่ ${lastDay} (สิ้นเดือนคือวันที่ ${monthEnd}) การเทียบกับเดือนก่อนจึงอาจดูต่ำกว่าจริง`);
+    if (k === S.months[0] && firstDay - 1 > PARTIAL_GAP_DAYS) add(true, `ข้อมูลเดือนนี้เริ่มวันที่ ${firstDay} ไม่ใช่ต้นเดือน ยอดจึงอาจต่ำกว่าจริง`);
+  }
+  if (S.months.length >= 4) {
+    const typical = median(S.months.map(m => S.counts[m] || 0)), n = S.counts[k] || 0;
+    if (n < THIN_RATIO * typical) add(true, `มีเพียง ${n} รายการ ขณะที่เดือนอื่นมักมีราว ${Math.round(typical)} รายการ ข้อมูลอาจไม่ครบ`);
+  }
+  const dupx = recs.filter(r => r.excluded === "dup_exact");
+  if (dupx.length) add(false, `${dupx.length} แถวที่เหมือนกันทุกช่องถูกตัดออกกันนับซ้ำ (รวม ${money(dupx.reduce((a, r) => a + r.amount, 0))})`);
+  const inf = recs.filter(r => r.catHow === "inferred");
+  if (inf.length) add(false, `${inf.length} แถวไม่มีหมวด จึงเดาหมวดจากชื่อร้าน`);
+  return { items, cats, material: items.some(i => i.material) };
+}
+
+function renderCaveats() {
+  const s = S.sig, keys = s.hasPrev ? [s.anchor, s.prevKey] : [s.anchor], el = $("caveats");
+  const groups = keys.map(k => ({ k, c: S.cav[k] })).filter(g => g.c.items.length);
+  if (!groups.length) {
+    el.className = "caveat clear";
+    el.textContent = `✓ ตรวจแล้ว: ไม่พบข้อควรรู้เกี่ยวกับ ${monthName(s.anchor)}${s.hasPrev ? " และเดือนก่อน" : ""}`;
+    return;
+  }
+  el.className = "caveat";
+  el.innerHTML = `<div class="ct"><span class="ci">ⓘ</span>ข้อควรรู้เกี่ยวกับตัวเลขนี้</div>` +
+    groups.map(g => `<div class="cg"><div class="cm">${esc(monthName(g.k))}</div><ul>${g.c.items.map(i => `<li>${esc(i.text)}</li>`).join("")}</ul></div>`).join("");
+}
+
+function signals(anchor) {
+  const cur = S.agg[anchor], prev = S.agg[prevKey(anchor)];
+  const sig = { anchor, prevKey: prevKey(anchor), hasPrev: !!prev, total: cur.total, prevTotal: prev ? prev.total : 0, cats: [], fast: null, bad: new Set() };
+  cur.cats.forEach(c => {
+    const p = prev && prev.cats.get(c.key) ? prev.cats.get(c.key).sum : 0;
+    const row = { key: c.key, name: c.name, cur: c.sum, prev: p, pct: p > 0 ? (c.sum - p) / p : null, isNew: !!prev && p === 0 };
+    row.bad = !!prev && p > 0 && row.pct >= BAD_PCT && c.sum - p >= BAD_MIN_ABS;
+    if (row.bad) sig.bad.add(c.key);
+    sig.cats.push(row);
+  });
+  sig.cats.sort((a, b) => b.cur - a.cur);
+  const cands = sig.cats.filter(c => c.prev >= FAST_MIN_PRIOR && c.cur > c.prev);
+  if (cands.length) sig.fast = cands.sort((a, b) => b.pct - a.pct)[0];
+  sig.totalPct = sig.hasPrev && sig.prevTotal > 0 ? (sig.total - sig.prevTotal) / sig.prevTotal : null;
+  return sig;
+}
+
+// ---- Rendering --------------------------------------------------------------
+function render() {
+  try { renderAll(); $("message").innerHTML = ""; }
+  catch (e) { console.error(e); showError("เครื่องมือเจอข้อมูลที่ไม่คาดคิด จึงไม่แสดงตัวเลขเพื่อกันความผิดพลาด (รายละเอียดทางเทคนิค: " + e.message + ")"); }
+}
+function showError(msg) {
+  $("message").innerHTML = `<div class="error">${esc(msg)}</div>`;
+  $("main").classList.add("hidden"); $("filters").classList.add("hidden"); $("datanote").textContent = ""; $("fresh").textContent = ""; $("save").classList.add("hidden"); $("savedmsg").classList.add("hidden");
+  $("filters").classList.remove("hidden"); // keep the file button reachable
+  ["fMonth", "fCat"].forEach(id => $(id).parentElement.classList.add("hidden"));
+}
+function renderAll() {
+  $("main").classList.remove("hidden");
+  ["fMonth", "fCat"].forEach(id => $(id).parentElement.classList.remove("hidden"));
+  S.anchor = S.fMonth === "all" ? S.months[S.months.length - 1] : S.fMonth;
+  S.sig = signals(S.anchor);
+  S.cav = {}; S.months.forEach(k => { S.cav[k] = monthCaveats(k); });
+  const watched = S.sig.hasPrev ? [S.anchor, S.sig.prevKey] : [S.anchor];
+  S.sig.caveat = watched.some(k => S.cav[k].material);
+  S.sig.affected = new Set(); watched.forEach(k => { if (S.cav[k].items.length) S.cav[k].cats.forEach(c => S.sig.affected.add(c)); });
+  $("save").classList.remove("hidden"); renderFresh(); $("demo").classList.toggle("hidden", S.fileName !== "demo_expenses.csv");
+  renderFilters(); renderNote(); renderVerdict(); renderCaveats(); renderTrend(); renderBars(); renderTable();
+}
+
+function renderFilters() {
+  const fm = $("fMonth"), fc = $("fCat");
+  fm.innerHTML = `<option value="all">ทุกเดือน</option>` + S.months.slice().reverse().map(k => `<option value="${k}">${esc(monthName(k))}</option>`).join("");
+  fm.value = S.fMonth;
+  const cats = new Map();
+  S.records.filter(r => r.date).forEach(r => cats.set(r.catKey, r.catName));
+  fc.innerHTML = `<option value="all">ทุกหมวด</option>` + [...cats.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([k, n]) => `<option value="${esc(k)}">${esc(n)}</option>`).join("");
+  fc.value = cats.has(S.fCat) ? S.fCat : "all"; S.fCat = fc.value;
+}
+
+function renderFresh() {
+  const used = S.records.filter(r => !r.excluded);
+  const last = used.reduce((a, r) => (r.date.t > a.t ? r.date : a), used[0].date);
+  const [y, m, d] = last.iso.split("-").map(Number);
+  $("fresh").innerHTML = `ข้อมูลถึง <strong>${esc(monthName(S.months[S.months.length - 1]))}</strong> · รายการล่าสุด ${d} ${MONTHS[m - 1]} ${y}`;
+}
+
+function buildSaved() {
+  const csvJson = JSON.stringify(S.csvText).split("</").join("<\\/");
+  // the first occurrence of each marker is the real definition near the top of this script
+  const swap = (html, marker, value) => {
+    const a = html.indexOf(marker), b = html.indexOf(";\n", a);
+    return html.slice(0, a) + marker + value + html.slice(b);
+  };
+  return swap(swap(PRISTINE, "const DEFAULT_CSV = ", csvJson), "const DEFAULT_NAME = ", JSON.stringify(S.fileName));
+}
+function saveCopy() {
+  const name = `Expense Dashboard ${S.months[S.months.length - 1]}.html`;
+  const blob = new Blob([buildSaved()], { type: "text/html;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+  const msg = $("savedmsg"); msg.classList.remove("hidden");
+  msg.textContent = `สั่งบันทึกแล้ว: "${name}" — ดูได้ในโฟลเดอร์ดาวน์โหลดของเบราว์เซอร์ (ถ้าไม่เห็นไฟล์ ให้ตรวจว่าเบราว์เซอร์ไม่ได้บล็อกการดาวน์โหลด)`;
+}
+
+function renderNote() {
+  const all = S.records, used = all.filter(r => !r.excluded).length, off = all.length - used;
+  const reasons = {};
+  all.filter(r => r.excluded).forEach(r => { reasons[r.excluded] = (reasons[r.excluded] || 0) + 1; });
+  const parts = [`<strong>${esc(S.fileName)}</strong>`, `อ่านได้ ${all.length} แถว · นับ ${used} แถว`];
+  if (off) parts.push(`ไม่นับ ${off} (${Object.keys(reasons).map(k => `${EXCLUDE_LABEL[k]} ${reasons[k]}`).join(", ")})`);
+  if (S.currency) parts.push(`สกุลเงิน ${esc(S.currency)}`);
+  S.notes.forEach(n => parts.push(esc(n)));
+  $("datanote").innerHTML = parts.join(" · ") + (S.fMonth === "all" ? ` · <strong>แถบสรุปและเส้นแนวโน้มอิงเดือนล่าสุด (${esc(monthName(S.anchor))})</strong>` : "");
+}
+
+function renderVerdict() {
+  const s = S.sig, f = s.fast;
+  const totalBad = s.totalPct !== null && s.totalPct > TOTAL_BAD_PCT;
+  let change = `<div class="big">—</div><div class="detail">ไม่มีข้อมูลเดือนก่อนในไฟล์นี้</div>`, changeCls = "";
+  if (s.hasPrev && s.totalPct !== null) {
+    const diff = s.total - s.prevTotal;
+    let kind, icon, word;
+    if (Math.abs(diff) < 0.005) { kind = "flat"; icon = "●"; word = "ทรงตัว"; }
+    else if (diff < 0) { kind = "good"; icon = "▼"; word = s.caveat ? "ใช้จ่ายลดลง" : "ใช้จ่ายลดลง ✓"; }
+    else if (totalBad) { kind = "bad"; icon = "▲"; word = "ใช้จ่ายเพิ่มขึ้น"; }
+    else { kind = "mild"; icon = "▲"; word = "เพิ่มขึ้นเล็กน้อย"; }
+    changeCls = kind === "bad" ? "flagged" : kind === "good" ? "goodwash" : "";
+    change = `<div class="vword ${kind}"><span class="vicon" aria-hidden="true">${icon}</span><span>${word}${s.caveat ? "*" : ""}</span></div>
+      <div class="big ${kind === "bad" ? "t-bad" : ""}">${esc(pctText(s.totalPct))}</div>
+      <div class="detail">${diff >= 0 ? "+" : "−"}${money(Math.abs(diff))} จาก ${esc(monthName(s.prevKey))} (${money(s.prevTotal)})</div>${s.caveat ? `<div class="detail" style="margin-top:6px;color:var(--ink-3)">* มีข้อควรรู้กับตัวเลขนี้ ดูกล่องด้านล่าง</div>` : ""}`;
+  }
+  let fast = `<div class="big">—</div><div class="detail">${s.hasPrev ? `ไม่มีหมวดที่เพิ่มขึ้นจากเดือนก่อน (เทียบเฉพาะหมวดที่เดือนก่อนใช้ ≥ ${FAST_MIN_PRIOR})` : "ไม่มีข้อมูลเดือนก่อนในไฟล์นี้"}</div>`;
+  if (f) {
+    const bad = s.bad.has(f.key);
+    const star = s.affected.has(f.key) ? "*" : "";
+    fast = `<div class="big ${bad ? "t-bad" : ""}">${esc(f.name)}${star}</div>
+      <div class="detail"><strong class="${bad ? "t-bad" : ""}">▲ ${esc(pctText(f.pct))}</strong>${bad ? '<span class="tagbad">โตผิดปกติ</span>' : ""}<br>${money(f.prev)} → ${money(f.cur)}</div>${star ? `<div class="detail" style="margin-top:6px;color:var(--ink-3)">* มีข้อควรรู้ในหมวดนี้ ดูกล่องด้านล่าง</div>` : ""}`;
+  }
+  $("verdict").innerHTML = `
+    <div><div class="label">ยอดใช้จ่ายรวม · ${esc(monthName(s.anchor))}</div><div class="hero">${money(s.total)}</div><div class="detail">${S.agg[s.anchor] ? S.records.filter(r => !r.excluded && r.date.month === s.anchor).length : 0} รายการที่นับ${S.currency ? " · " + esc(S.currency) : ""}</div></div>
+    <div class="${changeCls}"><div class="label">เทียบเดือนก่อน</div>${change}</div>
+    <div class="${f && s.bad.has(f.key) ? "flagged" : ""}"><div class="label">หมวดที่โตเร็วที่สุด</div>${fast}</div>`;
+}
+
+// trend line
+function niceStep(max) {
+  const raw = max / 4, mag = Math.pow(10, Math.floor(Math.log10(raw))), n = raw / mag;
+  return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * mag;
+}
+let trendGeo = null;
+function renderTrend() {
+  const s = S.sig, f = s.fast, months = S.months, n = months.length;
+  const total = months.map(k => S.agg[k].total);
+  const over = f ? months.map(k => (S.agg[k].cats.get(f.key) || { sum: 0 }).sum) : null;
+  const overBad = f && s.bad.has(f.key);
+  const overColor = overBad ? "var(--bad)" : "var(--series)";
+  $("trendSub").textContent = `ทุกเดือนในไฟล์ (${n} เดือน)${f ? ` · เส้นหนา${overBad ? "สีส้ม" : "สีน้ำเงิน"} = หมวดที่โตเร็วที่สุดของ ${monthName(S.anchor)}` : ""}`;
+  $("trendLegend").innerHTML = `<span><i style="border-color:var(--total)"></i>ยอดรวม · Total spend</span>` + (f ? `<span><i style="border-color:${overColor};border-top-width:4px"></i>${esc(f.name)}${overBad ? " (โตผิดปกติ)" : " (โตเร็วที่สุด)"}</span>` : "") +
+    (S.months.some(k => S.cav[k].material) ? `<span><svg width="18" height="18" viewBox="0 0 18 18" style="vertical-align:middle;margin-right:6px" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none" stroke="var(--ink-3)" stroke-width="1.5"/></svg>เดือนที่มีข้อควรรู้</span>` : "");
+
+  const box = $("trend"), W = Math.max(320, box.clientWidth || 700), H = 300;
+  const m = { l: 48, r: W < 560 ? 16 : 140, t: 16, b: 34 };
+  const pw = W - m.l - m.r, ph = H - m.t - m.b;
+  const vmax = Math.max(...total, 1), step = niceStep(vmax), top = Math.ceil(vmax / step) * step;
+  const x = i => m.l + (n === 1 ? pw / 2 : i * pw / (n - 1));
+  const y = v => m.t + ph * (1 - v / top);
+  const path = arr => arr.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  let g = "";
+  for (let v = 0; v <= top + 1e-9; v += step) g += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}" stroke="${v === 0 ? "var(--axis)" : "var(--grid)"}" stroke-width="1"/><text x="${m.l - 10}" y="${y(v) + 4}" text-anchor="end" font-size="12" fill="var(--ink-3)">${fmtK(v)}</text>`;
+  const ai = months.indexOf(S.anchor), bw = Math.min(pw / Math.max(n - 1, 1) * 0.8, 90);
+  const band = ai >= 0 ? `<rect x="${x(ai) - bw / 2}" y="${m.t}" width="${bw}" height="${ph}" fill="var(--band)" rx="6"/>` : "";
+  const skip = n > 12 ? Math.ceil(n / 12) : 1;
+  let xl = "";
+  months.forEach((k, i) => { if (i % skip === 0) { const [yy, mm] = k.split("-").map(Number); xl += `<text x="${x(i)}" y="${H - 10}" text-anchor="middle" font-size="12" fill="${k === S.anchor ? "var(--ink)" : "var(--ink-3)"}" ${k === S.anchor ? 'font-weight="600"' : ""}>${MONTHS[mm - 1]}${i === 0 || mm === 1 ? ` ${yy}` : ""}</text>`; } });
+  const area = `${path(total)} L${x(n - 1).toFixed(1)},${y(0).toFixed(1)} L${x(0).toFixed(1)},${y(0).toFixed(1)} Z`;
+  let lines = `<path d="${area}" fill="var(--total)" fill-opacity="0.07" stroke="none"/><path d="${path(total)}" fill="none" stroke="var(--total)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  if (over) lines += `<path d="${path(over)}" fill="none" stroke="${overColor}" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+  const dot = (i, v, c, r) => `<circle cx="${x(i)}" cy="${y(v)}" r="${r}" fill="${c}" stroke="var(--surface)" stroke-width="2"/>`;
+  let dots = dot(n - 1, total[n - 1], "var(--total)", 4) + (over ? dot(n - 1, over[n - 1], overColor, 6) : "");
+  const rings = months.map((k, i) => (S.cav[k].material ? `<circle cx="${x(i)}" cy="${y(total[i])}" r="9" fill="none" stroke="var(--ink-3)" stroke-width="1.5"/>` : "")).join("");
+  let labels = "";
+  if (m.r > 60) {
+    const yt = y(total[n - 1]), yo = over ? y(over[n - 1]) : null;
+    if (yo === null || Math.abs(yt - yo) >= 38) {
+      const cut = t => (t.length > 17 ? t.slice(0, 16) + "…" : t);
+      const lab = (yy, name, val, bold) => `<text x="${x(n - 1) + 14}" y="${yy - 2}" font-size="12" fill="var(--ink-3)">${esc(cut(name))}</text><text x="${x(n - 1) + 14}" y="${yy + 14}" font-size="14" font-weight="${bold ? 700 : 600}" fill="var(--ink)">${money(val)}</text>`;
+      labels += lab(yt, "ยอดรวม", total[n - 1], false);
+      if (over) labels += lab(yo, f.name, over[n - 1], true);
+    }
+  }
+  box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" tabindex="0" role="img" aria-label="เส้นแนวโน้มยอดใช้จ่ายรายเดือน ${esc(monthName(months[0]))} ถึง ${esc(monthName(months[n - 1]))}">${band}${g}${xl}${lines}${rings}${dots}${labels}
+    <line id="xh" y1="${m.t}" y2="${m.t + ph}" stroke="var(--ink-3)" stroke-width="1" class="hidden"/>
+    <g id="hd" class="hidden"><circle id="hd1" r="4" fill="var(--total)" stroke="var(--surface)" stroke-width="2"/><circle id="hd2" r="6" fill="${overColor}" stroke="var(--surface)" stroke-width="2"/></g>
+    <rect id="hit" x="${m.l - 20}" y="${m.t}" width="${pw + 40}" height="${ph + 20}" fill="transparent"/></svg>`;
+  trendGeo = { x, y, n, months, total, over, f, overColor, W, m, pw };
+  wireTrend();
+
+  // table twin
+  $("trendTable").innerHTML = `<table class="viewtable"><thead><tr><th>เดือน</th><th class="num">ยอดรวม</th>${f ? `<th class="num">${esc(f.name)}</th>` : ""}</tr></thead><tbody>` +
+    months.map((k, i) => `<tr><td>${esc(monthName(k))}</td><td class="num">${money(total[i])}</td>${over ? `<td class="num">${money(over[i])}</td>` : ""}</tr>`).join("") + `</tbody></table>`;
+}
+function wireTrend() {
+  const g = trendGeo, svg = $("trend").querySelector("svg"), hit = $("hit"), tip = $("trendTip");
+  const showAt = i => {
+    $("xh").setAttribute("x1", g.x(i)); $("xh").setAttribute("x2", g.x(i)); $("xh").classList.remove("hidden");
+    $("hd").classList.remove("hidden");
+    $("hd1").setAttribute("cx", g.x(i)); $("hd1").setAttribute("cy", g.y(g.total[i]));
+    if (g.over) { $("hd2").setAttribute("cx", g.x(i)); $("hd2").setAttribute("cy", g.y(g.over[i])); } else $("hd2").classList.add("hidden");
+    tip.replaceChildren();
+    const t = document.createElement("div"); t.className = "t"; t.textContent = monthName(g.months[i]); tip.appendChild(t);
+    const row = (color, val, name) => {
+      const r = document.createElement("div"); r.className = "r";
+      const k = document.createElement("i"); k.className = "k"; k.style.borderColor = color;
+      const b = document.createElement("b"); b.textContent = money(val);
+      const sp = document.createElement("span"); sp.textContent = name;
+      r.append(k, b, sp); tip.appendChild(r);
+    };
+    row("var(--total)", g.total[i], "ยอดรวม");
+    const cv = S.cav[g.months[i]];
+    if (cv && cv.material) {
+      const w = document.createElement("div"); w.className = "r"; const ws = document.createElement("span");
+      ws.textContent = "ⓘ เดือนนี้มีข้อควรรู้กับตัวเลข (เลือกเดือนนี้เพื่อดูรายละเอียด)"; w.appendChild(ws); tip.appendChild(w);
+    }
+    if (g.over) row(g.overColor, g.over[i], g.f.name);
+    tip.classList.remove("hidden");
+    const px = g.x(i), w = tip.offsetWidth;
+    tip.style.left = Math.max(0, Math.min(px + 14, g.W - w - 4)) + "px"; tip.style.top = "8px";
+    if (px + 14 + w > g.W - 4) tip.style.left = Math.max(0, px - w - 14) + "px";
+  };
+  const hide = () => { $("xh").classList.add("hidden"); $("hd").classList.add("hidden"); tip.classList.add("hidden"); };
+  let cur = g.months.indexOf(S.anchor);
+  hit.addEventListener("pointermove", e => {
+    const r = svg.getBoundingClientRect(), px = e.clientX - r.left;
+    let best = 0, bd = Infinity;
+    for (let i = 0; i < g.n; i++) { const d = Math.abs(g.x(i) - px); if (d < bd) { bd = d; best = i; } }
+    cur = best; showAt(best);
+  });
+  hit.addEventListener("pointerleave", hide);
+  hit.addEventListener("click", () => { if ($("fMonth").value !== g.months[cur]) { S.fMonth = g.months[cur]; render(); } });
+  svg.addEventListener("focus", () => showAt(cur < 0 ? g.n - 1 : cur));
+  svg.addEventListener("blur", hide);
+  svg.addEventListener("keydown", e => {
+    if (e.key === "ArrowLeft") { cur = Math.max(0, (cur < 0 ? g.n - 1 : cur) - 1); showAt(cur); e.preventDefault(); }
+    if (e.key === "ArrowRight") { cur = Math.min(g.n - 1, (cur < 0 ? g.n - 1 : cur) + 1); showAt(cur); e.preventDefault(); }
+    if (e.key === "Enter") { S.fMonth = g.months[cur]; render(); }
+  });
+}
+
+// category bars
+function barData() {
+  if (S.fMonth !== "all") return S.sig.cats.filter(c => c.cur > 0).map(c => ({ ...c, share: c.cur / S.sig.total }));
+  const m = new Map(); let tot = 0;
+  S.months.forEach(k => S.agg[k].cats.forEach(c => { const r = m.get(c.key) || { key: c.key, name: c.name, cur: 0, prev: 0, pct: null, isNew: false, bad: false }; r.cur += c.sum; tot += c.sum; m.set(c.key, r); }));
+  return [...m.values()].filter(c => c.cur > 0).sort((a, b) => b.cur - a.cur).map(c => ({ ...c, share: c.cur / tot }));
+}
+function renderBars() {
+  const data = barData(), max = Math.max(...data.map(d => d.cur), 1), single = S.fMonth !== "all";
+  $("catSub").textContent = single ? `${monthName(S.anchor)} · คลิกแท่งเพื่อกรองตารางด้านล่าง` : `รวมทุกเดือน · คลิกแท่งเพื่อกรองตารางด้านล่าง`;
+  $("catKey").innerHTML = single && S.sig.hasPrev
+    ? `<span><i style="background:var(--series)"></i>ปกติ</span><span><i style="background:var(--bad)"></i>โตผิดปกติ (เพิ่มเกิน ${BAD_PCT * 100}% และ +${BAD_MIN_ABS} ขึ้นไปเทียบเดือนก่อน)</span>` : "";
+  const bars = $("bars"); bars.replaceChildren();
+  bars.classList.toggle("has-sel", S.fCat !== "all");
+  data.forEach(d => {
+    const row = document.createElement("div");
+    row.className = "brow" + (d.bad ? " bad" : "") + (S.fCat === d.key ? " sel" : "");
+    row.tabIndex = 0; row.setAttribute("role", "button"); row.setAttribute("aria-pressed", S.fCat === d.key);
+    row.setAttribute("aria-label", `${d.name} ${money(d.cur)}`);
+    row.style.setProperty("--p", (d.cur / max).toFixed(4));
+    const nm = document.createElement("div"); nm.className = "name"; nm.textContent = d.name;
+    const tr = document.createElement("div"); tr.className = "track";
+    const bar = document.createElement("div"); bar.className = "bar";
+    const val = document.createElement("div"); val.className = "val"; val.textContent = money(d.cur);
+    if (single && S.sig.hasPrev && d.bad) { const em = document.createElement("em"); em.textContent = `▲ ${pctText(d.pct)}`; val.appendChild(em); }
+    else if (single && d.isNew) { const em = document.createElement("em"); em.textContent = "ใหม่"; val.appendChild(em); }
+    tr.append(bar, val); row.append(nm, tr); bars.appendChild(row);
+    const tip = $("catTip");
+    const show = () => {
+      tip.replaceChildren();
+      const t = document.createElement("div"); t.className = "t"; t.textContent = d.name; tip.appendChild(t);
+      const r = document.createElement("div"); r.className = "r";
+      const b = document.createElement("b"); b.textContent = money(d.cur);
+      const sp = document.createElement("span"); sp.textContent = `${(d.share * 100).toFixed(1)}% ของยอดรวม`; r.append(b, sp); tip.appendChild(r);
+      if (single && S.sig.hasPrev) {
+        const r2 = document.createElement("div"); r2.className = "r"; const sp2 = document.createElement("span");
+        sp2.textContent = d.prev > 0 ? `เดือนก่อน ${money(d.prev)} (${pctText(d.pct)})` : "เดือนก่อนไม่มียอดในหมวดนี้"; r2.appendChild(sp2); tip.appendChild(r2);
+      }
+      tip.classList.remove("hidden");
+      const br = row.getBoundingClientRect(), cr = $("catBox").getBoundingClientRect();
+      tip.style.top = (br.top - cr.top + br.height + 4) + "px";
+      tip.style.left = Math.min(Math.max(br.width * 0.25, 0), Math.max(0, cr.width - tip.offsetWidth - 4)) + "px";
+    };
+    row.addEventListener("pointerenter", show); row.addEventListener("focus", show);
+    row.addEventListener("pointerleave", () => tip.classList.add("hidden")); row.addEventListener("blur", () => tip.classList.add("hidden"));
+    const toggle = () => { S.fCat = S.fCat === d.key ? "all" : d.key; S.showAll = false; render(); };
+    row.addEventListener("click", toggle);
+    row.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
+  });
+  $("catTable").innerHTML = `<table class="viewtable"><thead><tr><th>หมวดหมู่</th><th class="num">ยอด</th><th class="num">สัดส่วน</th>${single ? '<th class="num">เดือนก่อน</th><th class="num">เปลี่ยนแปลง</th>' : ""}</tr></thead><tbody>` +
+    data.map(d => `<tr><td>${esc(d.name)}</td><td class="num">${money(d.cur)}</td><td class="num">${(d.share * 100).toFixed(1)}%</td>${single ? `<td class="num">${S.sig.hasPrev ? money(d.prev) : "—"}</td><td class="num">${d.pct !== null ? esc(pctText(d.pct)) : (d.isNew ? "ใหม่" : "—")}</td>` : ""}</tr>`).join("") + `</tbody></table>`;
+}
+
+// table
+function renderTable() {
+  let rows = S.records.filter(r => r.date);
+  if (S.fMonth !== "all") rows = rows.filter(r => r.date.month === S.fMonth);
+  if (S.fCat !== "all") rows = rows.filter(r => r.catKey === S.fCat);
+  const { key, dir } = S.sort;
+  rows.sort((a, b) => {
+    let d;
+    if (key === "amount") { const av = a.amountStatus === "ok" ? a.amount : -Infinity, bv = b.amountStatus === "ok" ? b.amount : -Infinity; d = av - bv; }
+    else d = a.date.t - b.date.t;
+    return (d || a.line - b.line) * dir;
+  });
+  const counted = rows.filter(r => !r.excluded), sum = counted.reduce((a, r) => a + r.amount, 0);
+  const catName = S.fCat === "all" ? "ทุกหมวด" : (rows[0] ? rows[0].catName : "");
+  $("tableSub").textContent = `${S.fMonth === "all" ? "ทุกเดือน" : monthName(S.fMonth)} · ${catName}`;
+  const shown = S.showAll ? rows : rows.slice(0, ROWS_FIRST);
+  const flagRows = S.fMonth !== "all";
+  const arrow = k => (S.sort.key === k ? (S.sort.dir === -1 ? " ▼" : " ▲") : "");
+  const ariaSort = k => (S.sort.key === k ? (S.sort.dir === -1 ? "descending" : "ascending") : "none");
+  let h = `<thead><tr><th aria-sort="${ariaSort("date")}"><button data-sort="date" type="button">วันที่${arrow("date")}</button></th><th>ร้านค้า</th><th>หมวดหมู่</th><th class="num" aria-sort="${ariaSort("amount")}"><button data-sort="amount" type="button">ยอด${arrow("amount")}</button></th><th>โน้ต</th></tr></thead><tbody>`;
+  if (!rows.length) h += `<tr><td colspan="5" class="empty">ไม่มีรายการตามตัวกรองนี้</td></tr>`;
+  shown.forEach(r => {
+    const bad = flagRows && !r.excluded && S.sig.bad.has(r.catKey);
+    h += `<tr class="${bad ? "bad" : ""}${r.excluded ? " off" : ""}"><td>${esc(r.date.iso)}</td><td>${esc(r.vendor)}${r.maybeDup ? `<span class="chip">อาจซ้ำ</span>` : ""}${r.date.ambiguous ? `<span class="chip">วันที่กำกวม</span>` : ""}${r.catHow === "inferred" ? `<span class="chip">เดาหมวด</span>` : ""}</td><td>${esc(r.catName)}</td>` +
+      `<td class="num amt">${r.amountStatus === "ok" ? money(r.amount) : "—"}${r.excluded ? `<span class="chip">ไม่นับ: ${esc(EXCLUDE_LABEL[r.excluded])}</span>` : ""}</td><td class="notes">${esc(r.notes)}</td></tr>`;
+  });
+  h += `</tbody>${rows.length ? `<tfoot><tr><td colspan="3">แสดง ${rows.length} รายการ${rows.length - counted.length ? ` (นับ ${counted.length})` : ""}</td><td class="num">${money(sum)}</td><td></td></tr></tfoot>` : ""}`;
+  $("exp").innerHTML = h;
+  $("more").innerHTML = rows.length > ROWS_FIRST && !S.showAll ? `<button class="link" id="showAll" type="button">แสดงทั้งหมด ${rows.length} รายการ</button>` : "";
+  document.querySelectorAll("[data-sort]").forEach(b => b.addEventListener("click", () => {
+    const k = b.dataset.sort;
+    S.sort = S.sort.key === k ? { key: k, dir: -S.sort.dir } : { key: k, dir: -1 };
+    renderTable();
+  }));
+  const sa = $("showAll"); if (sa) sa.addEventListener("click", () => { S.showAll = true; renderTable(); });
+}
+
+// ---- Wiring -----------------------------------------------------------------
+function loadAndRender(text, name) {
+  try { load(text, name); $("message").innerHTML = ""; render(); }
+  catch (e) { console.error(e); showError(e.message); }
+}
+function readFile(file) {
+  if (!file) return;
+  const rd = new FileReader();
+  rd.onload = () => loadAndRender(String(rd.result), file.name);
+  rd.onerror = () => showError("เปิดไฟล์ไม่สำเร็จ");
+  rd.readAsText(file, "utf-8");
+}
+$("fMonth").addEventListener("change", e => { S.fMonth = e.target.value; S.showAll = false; render(); });
+$("fCat").addEventListener("change", e => { S.fCat = e.target.value; S.showAll = false; render(); });
+$("pick").addEventListener("click", () => $("file").click());
+$("save").addEventListener("click", saveCopy);
+$("file").addEventListener("change", e => { readFile(e.target.files[0]); e.target.value = ""; });
+[["trendToggle", ["trendBox", "trendLegend"], "trendTable"], ["catToggle", ["catBox", "catKey"], "catTable"]].forEach(([btn, chartIds, tbl]) => {
+  $(btn).addEventListener("click", () => {
+    const showTable = $(tbl).classList.contains("hidden");
+    $(tbl).classList.toggle("hidden", !showTable);
+    chartIds.forEach(id => $(id).classList.toggle("hidden", showTable));
+    $(btn).textContent = showTable ? "ดูเป็นกราฟ" : "ดูเป็นตาราง";
+    if (!showTable && S.sig) renderTrend();
+  });
+});
+["dragenter", "dragover"].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); document.body.classList.add("drop-over"); }));
+["dragleave", "drop"].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); document.body.classList.remove("drop-over"); }));
+document.addEventListener("drop", e => readFile(e.dataTransfer.files[0]));
+let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { if (S.sig && !$("trendBox").classList.contains("hidden")) renderTrend(); }, 120); });
+window.__load = loadAndRender; window.__S = S; window.__buildSaved = buildSaved;
+loadAndRender(DEFAULT_CSV, DEFAULT_NAME);
+</script>
+</body>
+</html>
